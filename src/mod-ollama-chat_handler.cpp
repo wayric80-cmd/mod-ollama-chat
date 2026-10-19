@@ -1641,7 +1641,7 @@ void PlayerBotChatHandler::ProcessChat(Player* player, uint32_t /*type*/, uint32
             // FACTION CHECK: For non-global channels, ensure same faction
             if (candidate->GetTeamId() != player->GetTeamId())
             {
-                if (!isGlobalChannel)
+                if (!isGlobalChannel || g_WovNoCrossFaction)
                 {
                     if(g_DebugEnabled)
                     {
@@ -2274,7 +2274,8 @@ static bool IsBotEligibleForChatChannelLocal(Player* bot, Player* player, ChatCh
     // Check team compatibility for non-proximity chats (except channels which can be cross-faction)
     // Say and Yell are proximity-based and don't require same faction
     bool isProximityChatSource = (source == SRC_SAY_LOCAL || source == SRC_YELL_LOCAL);
-    if (!channel && !isProximityChatSource && bot->GetTeamId() != player->GetTeamId())
+    if (bot->GetTeamId() != player->GetTeamId() &&
+        (g_WovNoCrossFaction || (!channel && !isProximityChatSource)))   // wov: never across factions
         return false;
     
     // For channels, check if bot is in the specific channel instance

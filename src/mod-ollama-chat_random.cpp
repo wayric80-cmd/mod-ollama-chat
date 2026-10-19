@@ -219,7 +219,8 @@ namespace
         for (auto const& ref : bot->GetMap()->GetPlayers())
         {
             Player* p = ref.GetSource();
-            if (!p || p == bot || !p->IsInWorld() || !p->IsAlive() || OllamaIsBotPlayer(p))
+            if (!p || p == bot || !p->IsInWorld() || !p->IsAlive() || OllamaIsBotPlayer(p) ||
+                p->GetTeamId() != bot->GetTeamId())
                 continue;
             if (!bot->IsWithinDistInMap(p, g_SayDistance))
                 continue;
@@ -611,6 +612,7 @@ void OllamaBotRandomChatter::HandleRandomChatter()
         {
             Player* target = ObjectAccessor::FindConnectedPlayer(ObjectGuid(topic.targetGuid));
             if (target && target->IsInWorld() && target->IsAlive() &&
+                (!g_WovNoCrossFaction || target->GetTeamId() == bot->GetTeamId()) &&
                 (!positional || bot->IsWithinDistInMap(target, g_SayDistance)))
             {
                 initiateGuid = topic.targetGuid;

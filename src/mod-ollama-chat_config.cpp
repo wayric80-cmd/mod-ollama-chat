@@ -299,6 +299,7 @@ uint32_t    g_RelationshipMaxLength         = 220;
 bool        g_WovRelationshipRealOnly       = true;   // wov: relationships only toward real players
 float       g_WovPvpGrudge                  = 0.15f;  // wov: sentiment drop when a real player kills the bot
 bool        g_WovGreetEnable                = false;  // wov: greet known real players nearby
+bool        g_WovNoCrossFaction             = true;   // wov: bots never talk with the other faction
 uint32_t    g_WovGreetChance                = 40;
 uint32_t    g_WovGreetHours                 = 3;
 std::string g_WovGreetTemplate;
@@ -868,6 +869,7 @@ void LoadOllamaChatConfig()
     g_WovRelationshipRealOnly      = sConfigMgr->GetOption<bool>("OllamaChat.WoV.RelationshipRealOnly", true);
     g_WovPvpGrudge                 = sConfigMgr->GetOption<float>("OllamaChat.WoV.PvpGrudge", 0.15f);
     g_WovGreetEnable               = sConfigMgr->GetOption<bool>("OllamaChat.WoV.Greet.Enable", false);
+    g_WovNoCrossFaction            = sConfigMgr->GetOption<bool>("OllamaChat.WoV.NoCrossFaction", true);
     g_WovGreetChance               = sConfigMgr->GetOption<uint32_t>("OllamaChat.WoV.Greet.Chance", 40);
     g_WovGreetHours                = sConfigMgr->GetOption<uint32_t>("OllamaChat.WoV.Greet.Hours", 3);
     g_WovGreetTemplate             = sConfigMgr->GetOption<std::string>("OllamaChat.WoV.Greet.Template", "");

@@ -492,6 +492,7 @@ extern uint32_t    g_RelationshipMaxLength;
 extern bool        g_WovRelationshipRealOnly;
 extern float       g_WovPvpGrudge;
 extern bool        g_WovGreetEnable;
+extern bool        g_WovNoCrossFaction;
 extern uint32_t    g_WovGreetChance;
 extern uint32_t    g_WovGreetHours;
 extern std::string g_WovGreetTemplate;
