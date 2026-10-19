@@ -1190,6 +1190,34 @@ namespace
         // time in ProcessChat, where the Group was live to consult.
         const bool directAddress = c.request.directAddress;
 
+        // wov: snapshot leak. The model sometimes copies the game-state block it
+        // was given ("NOT IN COMBAT", "WHAT IS GOING ON IN YOUR GAME RIGHT NOW")
+        // onto the end of a reply. Cut the reply at the first such marker.
+        {
+            static const char* const kLeaks[] = {"WHAT IS GOING ON", "NOT IN COMBAT", "IN COMBAT.",
+                                                 "Your abilities:", "Your quests:", "Players nearby:",
+                                                 "Around you:", "(Background"};
+            size_t cutAt = std::string::npos;
+            for (const char* m : kLeaks)
+            {
+                size_t pos = c.text.find(m);
+                if (pos != std::string::npos && pos < cutAt)
+                    cutAt = pos;
+            }
+            if (cutAt != std::string::npos)
+            {
+                std::string kept = c.text.substr(0, cutAt);
+                while (!kept.empty() && std::isspace(static_cast<unsigned char>(kept.back())))
+                    kept.pop_back();
+                if (g_DebugEnabled)
+                    LOG_INFO("module.ollamachat", "[Ollama Chat] Bot {} snapshot leak cut: '{}'",
+                             bot->GetName(), c.text.substr(cutAt));
+                if (kept.empty())
+                    return;
+                c.text = kept;
+            }
+        }
+
         // wov: echo strip. Small models open by repeating the message they answer
         // ("where do i train? lol ...") -- no person types that. Drop a leading
         // copy of the origin message (case-insensitive, ignoring the punctuation
