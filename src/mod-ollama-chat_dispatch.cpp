@@ -1218,6 +1218,22 @@ namespace
             }
         }
 
+        // wov: transcript leak. The model sometimes continues the chat log it was
+        // shown ("Zugzug says \"...\". You: Well, ..."). Keep what follows the last "You: ".
+        {
+            size_t you = c.text.rfind("You: ");
+            if (you != std::string::npos)
+            {
+                std::string tail = c.text.substr(you + 5);
+                if (g_DebugEnabled)
+                    LOG_INFO("module.ollamachat", "[Ollama Chat] Bot {} transcript leak cut: '{}'",
+                             bot->GetName(), c.text.substr(0, you + 5));
+                if (tail.empty())
+                    return;
+                c.text = tail;
+            }
+        }
+
         // wov: echo strip. Small models open by repeating the message they answer
         // ("where do i train? lol ...") -- no person types that. Drop a leading
         // copy of the origin message (case-insensitive, ignoring the punctuation
@@ -1232,6 +1248,8 @@ namespace
                 return out;
             };
             std::string const want = norm(c.request.originMessage);
+            // Short greetings ("hey", "hi") are naturally mirrored: only a pure echo of those is dropped.
+            const bool shortOrigin = want.size() < 8;
             if (want.size() >= 2)
             {
                 std::string got;
@@ -1254,7 +1272,11 @@ namespace
                            (std::ispunct(static_cast<unsigned char>(c.text[cut])) ||
                             std::isspace(static_cast<unsigned char>(c.text[cut]))))
                         ++cut;
-                    if (cut < c.text.size())
+                    if (cut < c.text.size() && shortOrigin)
+                    {
+                        // keep the reply as written
+                    }
+                    else if (cut < c.text.size())
                     {
                         if (g_DebugEnabled)
                             LOG_INFO("module.ollamachat", "[Ollama Chat] Bot {} echo stripped: '{}'",
