@@ -43,6 +43,7 @@ uint32_t   g_BotReplyChance_Guild      = 5;
 uint32_t   g_MaxBotsToPick     = 2;
 uint32_t   g_RandomChatterBotCommentChance   = 5;
 uint32_t   g_RandomChatterMaxBotsPerPlayer   = 2;
+uint32_t   g_WovZoneChatterChance            = 0;   // wov: % per tick for bots elsewhere in a real player's zone
 uint32_t   g_EventChatterBotCommentChance    = 15;
 uint32_t   g_EventChatterBotSelfCommentChance = 5;
 uint32_t   g_EventChatterMaxBotsPerPlayer    = 2;
@@ -679,6 +680,7 @@ void LoadOllamaChatConfig()
     g_RandomChatterRealPlayerDistance = sConfigMgr->GetOption<float>("OllamaChat.RandomChatterRealPlayerDistance", 40.0f);
     g_RandomChatterBotCommentChance   = sConfigMgr->GetOption<uint32_t>("OllamaChat.RandomChatterBotCommentChance", 25);
     g_RandomChatterMaxBotsPerPlayer   = sConfigMgr->GetOption<uint32_t>("OllamaChat.RandomChatterMaxBotsPerPlayer", 2);
+    g_WovZoneChatterChance            = sConfigMgr->GetOption<uint32_t>("OllamaChat.WoV.ZoneChatterChance", 0);
 
     g_EnableGuildRandomAmbientChatter = sConfigMgr->GetOption<bool>("OllamaChat.EnableGuildRandomAmbientChatter", true);
     g_GuildRandomChatterChance        = sConfigMgr->GetOption<uint32_t>("OllamaChat.GuildRandomChatterChance", 10);

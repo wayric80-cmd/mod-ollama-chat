@@ -412,7 +412,13 @@ void OllamaBotRandomChatter::HandleRandomChatter()
         // realm with nobody logged in produced no talk, no memories and no history at all (plans/31 §19).
         const bool partyAudience = g_PartyChatterEnable && BotOnlyCompany(bot);
 
-        if (!guildAudience && !nearRealPlayer && !partyAudience)
+        // wov: zone audience. General is zone-wide: a bot anywhere in a zone where a real player of its
+        // faction is may talk there, on its own (lower) chance. ChooseDestination only offers General/
+        // Trade when a real player is actually in that channel, and /say only when one is within earshot.
+        const bool zoneAudience = !nearRealPlayer && g_WovZoneChatterChance > 0 &&
+                                  world.RealPlayerInZoneAndFaction(bot);
+
+        if (!guildAudience && !nearRealPlayer && !partyAudience && !zoneAudience)
             continue;
 
         if (Conversation_HasPartner(bot))
@@ -443,6 +449,14 @@ void OllamaBotRandomChatter::HandleRandomChatter()
         if (partyAudience && !nearRealPlayer && !guildAudience)
         {
             if (urand(0, 99) >= g_PartyChatterChance || !PartyTalkAllowed(bot, now))
+            {
+                reschedule();
+                continue;
+            }
+        }
+        else if (zoneAudience && !guildAudience && !partyAudience)
+        {
+            if (urand(0, 99) >= g_WovZoneChatterChance)
             {
                 reschedule();
                 continue;
