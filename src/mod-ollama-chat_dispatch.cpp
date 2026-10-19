@@ -1179,6 +1179,11 @@ namespace
         if (!bot->IsAlive())
             return;
 
+        // wov: muted (reported, see wov/reports.py) players cannot talk. Bot speech does not pass the
+        // client chat handler, so the server's own mute check never sees it; enforce it here.
+        if (bot->GetSession() && !bot->GetSession()->CanSpeak())
+            return;
+
         PlayerbotAI* botAI = PlayerbotsMgr::instance().GetPlayerbotAI(bot);
         if (!botAI)
             return;
