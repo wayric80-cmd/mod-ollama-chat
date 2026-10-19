@@ -1249,7 +1249,11 @@ namespace
             };
             std::string const want = norm(c.request.originMessage);
             // Short greetings ("hey", "hi") are naturally mirrored: only a pure echo of those is dropped.
-            const bool shortOrigin = want.size() < 8;
+            static const char* const kGreetings[] = {"hey", "hi", "hello", "yo", "sup", "hiya", "heya", "hai", "o", "ty", "thx", "lol", "gz", "grats", "bye", "cya"};
+            bool shortOrigin = false;
+            for (const char* g : kGreetings)
+                if (want == g)
+                    shortOrigin = true;
             if (want.size() >= 2)
             {
                 std::string got;
