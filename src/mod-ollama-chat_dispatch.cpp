@@ -1,3 +1,4 @@
+#include <cctype>
 #include "mod-ollama-chat_dispatch.h"
 #include "mod-ollama-chat_api.h"
 #include "mod-ollama-chat_config.h"
@@ -1188,6 +1189,53 @@ namespace
         // suppressions that exist to pace ambient chatter. Decided at submit
         // time in ProcessChat, where the Group was live to consult.
         const bool directAddress = c.request.directAddress;
+
+        // wov: echo strip. Small models open by repeating the message they answer
+        // ("where do i train? lol ...") -- no person types that. Drop a leading
+        // copy of the origin message (case-insensitive, ignoring the punctuation
+        // and spaces that follow it) before any other filter sees the line.
+        if (!c.request.originMessage.empty())
+        {
+            auto norm = [](std::string const& in) {
+                std::string out;
+                for (unsigned char ch : in)
+                    if (std::isalnum(ch))
+                        out += static_cast<char>(std::tolower(ch));
+                return out;
+            };
+            std::string const want = norm(c.request.originMessage);
+            if (want.size() >= 2)
+            {
+                std::string got;
+                size_t cut = std::string::npos;
+                for (size_t i = 0; i < c.text.size(); ++i)
+                {
+                    unsigned char ch = static_cast<unsigned char>(c.text[i]);
+                    if (std::isalnum(ch))
+                        got += static_cast<char>(std::tolower(ch));
+                    if (got.size() == want.size())
+                    {
+                        if (got == want)
+                            cut = i + 1;
+                        break;
+                    }
+                }
+                if (cut != std::string::npos)
+                {
+                    while (cut < c.text.size() &&
+                           (std::ispunct(static_cast<unsigned char>(c.text[cut])) ||
+                            std::isspace(static_cast<unsigned char>(c.text[cut]))))
+                        ++cut;
+                    if (cut < c.text.size())
+                    {
+                        if (g_DebugEnabled)
+                            LOG_INFO("module.ollamachat", "[Ollama Chat] Bot {} echo stripped: '{}'",
+                                     bot->GetName(), c.text.substr(0, cut));
+                        c.text = c.text.substr(cut);
+                    }
+                }
+            }
+        }
 
         // Repetition is checked at delivery rather than at submission, because
         // we only know what the model actually said now.
