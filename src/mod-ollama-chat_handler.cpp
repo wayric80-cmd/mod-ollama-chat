@@ -2535,6 +2535,12 @@ std::string GenerateBotPrompt(Player* bot, std::string playerMessage, Player* pl
     // treatment through its variation list; this is the reply path's equivalent.
     // The instruction alone never held: asked for "a few words", the model gave twenty to seventy. An entry's
     // "@N" is enforced on the reply once it comes back (ClampReplyWords), by whole sentences.
+    // wov: question last. A small model answers what it read last; after persona, history, facts and the
+    // game-state block the actual question was buried mid-prompt and replies drifted to whatever came after it.
+    if (player && !playerMessage.empty())
+        prompt += "\n\n" + player->GetName() + " just said to you: \"" + playerMessage +
+                  "\". Answer exactly that, as yourself.";
+
     if (!g_ReplyRegisters.empty())
     {
         std::string reg = g_ReplyRegisters[urand(0, static_cast<uint32_t>(g_ReplyRegisters.size() - 1))];
