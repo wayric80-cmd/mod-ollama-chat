@@ -20,4 +20,7 @@ private:
 // bot GUID the server had ever seen and never released one.
 void OllamaRandomChatter_ForgetBot(ObjectGuid botGuid);
 
+// wov: a real player logged in; a bot that counts them as a friend may whisper them shortly
+void WovQueueFriendLogin(uint64_t playerGuid);
+
 #endif // MOD_OLLAMA_CHAT_RANDOM_H

@@ -300,6 +300,9 @@ bool        g_WovRelationshipRealOnly       = true;   // wov: relationships only
 float       g_WovPvpGrudge                  = 0.15f;  // wov: sentiment drop when a real player kills the bot
 bool        g_WovGreetEnable                = false;  // wov: greet known real players nearby
 bool        g_WovNoCrossFaction             = true;   // wov: bots never talk with the other faction
+bool        g_WovFriendLoginEnable          = false;  // wov: a friend whispers you when you log in
+float       g_WovFriendLoginMinLike         = 0.6f;
+std::string g_WovFriendLoginTemplate;
 uint32_t    g_WovGreetChance                = 40;
 uint32_t    g_WovGreetHours                 = 3;
 std::string g_WovGreetTemplate;
@@ -870,6 +873,9 @@ void LoadOllamaChatConfig()
     g_WovPvpGrudge                 = sConfigMgr->GetOption<float>("OllamaChat.WoV.PvpGrudge", 0.15f);
     g_WovGreetEnable               = sConfigMgr->GetOption<bool>("OllamaChat.WoV.Greet.Enable", false);
     g_WovNoCrossFaction            = sConfigMgr->GetOption<bool>("OllamaChat.WoV.NoCrossFaction", true);
+    g_WovFriendLoginEnable         = sConfigMgr->GetOption<bool>("OllamaChat.WoV.FriendLogin.Enable", false);
+    g_WovFriendLoginMinLike        = sConfigMgr->GetOption<float>("OllamaChat.WoV.FriendLogin.MinLike", 0.6f);
+    g_WovFriendLoginTemplate       = sConfigMgr->GetOption<std::string>("OllamaChat.WoV.FriendLogin.Template", "");
     g_WovGreetChance               = sConfigMgr->GetOption<uint32_t>("OllamaChat.WoV.Greet.Chance", 40);
     g_WovGreetHours                = sConfigMgr->GetOption<uint32_t>("OllamaChat.WoV.Greet.Hours", 3);
     g_WovGreetTemplate             = sConfigMgr->GetOption<std::string>("OllamaChat.WoV.Greet.Template", "");

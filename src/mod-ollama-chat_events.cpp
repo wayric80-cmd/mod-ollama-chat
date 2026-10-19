@@ -11,6 +11,7 @@
 #include "mod-ollama-chat_sentiment.h"
 #include "mod-ollama-chat_response.h"
 #include "mod-ollama-chat_topics.h"
+#include "mod-ollama-chat_random.h"
 #include "mod-ollama-chat-utilities.h"
 
 #include "AchievementMgr.h"
@@ -877,6 +878,9 @@ ChatOnGuildLogin::ChatOnGuildLogin()
 
 void ChatOnGuildLogin::OnPlayerLogin(Player* player)
 {
+    if (player && !OllamaIsBotPlayer(player))
+        WovQueueFriendLogin(player->GetGUID().GetRawValue());  // wov
+
     if (!player || !g_EnableGuildEventChatter || g_GuildEventTypeGuildLogin.empty())
         return;
 

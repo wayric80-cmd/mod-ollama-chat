@@ -277,6 +277,80 @@ namespace
         return OllamaDispatch_Submit(std::move(request));
     }
 
+    // ---- wov: a friend logs in -----------------------------------------------------------------------
+    std::mutex g_wovLoginMutex;
+    std::vector<std::pair<uint64_t, time_t>> g_wovLoginQueue;
+
+    void WovProcessFriendLogins(time_t now)
+    {
+        std::vector<uint64_t> due;
+        {
+            std::lock_guard<std::mutex> lock(g_wovLoginMutex);
+            for (auto it = g_wovLoginQueue.begin(); it != g_wovLoginQueue.end();)
+            {
+                if (it->second <= now) { due.push_back(it->first); it = g_wovLoginQueue.erase(it); }
+                else ++it;
+            }
+        }
+        for (uint64_t pRaw : due)
+        {
+            Player* who = ObjectAccessor::FindConnectedPlayer(ObjectGuid(pRaw));
+            if (!who || !who->IsInWorld())
+                continue;
+            std::vector<std::pair<Player*, std::string>> friends;
+            for (auto const& [guid, bot] : ObjectAccessor::GetPlayers())
+            {
+                if (!bot || !bot->IsInWorld() || !OllamaIsBotPlayer(bot) || bot->GetTeamId() != who->GetTeamId())
+                    continue;
+                const uint64_t bRaw = bot->GetGUID().GetRawValue();
+                std::string rel = Memory_RelationshipWith(bRaw, pRaw);
+                if (rel.empty())
+                    continue;
+                if (g_EnableSentimentTracking && GetBotPlayerSentiment(bRaw, pRaw) < g_WovFriendLoginMinLike)
+                    continue;
+                friends.emplace_back(bot, rel);
+            }
+            if (friends.empty())
+                continue;
+            auto const& pick = friends[urand(0, friends.size() - 1)];
+            Player* bot = pick.first;
+            PlayerbotAI* botAI = PlayerbotsMgr::instance().GetPlayerbotAI(bot);
+            if (!botAI || !botAI->GetChatHelper())
+                continue;
+            const uint64_t bRaw = bot->GetGUID().GetRawValue();
+            g_wovLastGreet[bRaw][pRaw] = now;
+            std::string prompt = SafeFormat(g_WovFriendLoginTemplate,
+                fmt::arg("bot_name", bot->GetName()),
+                fmt::arg("bot_level", bot->GetLevel()),
+                fmt::arg("bot_class", botAI->GetChatHelper()->FormatClass(bot->getClass())),
+                fmt::arg("bot_race", botAI->GetChatHelper()->FormatRace(bot->getRace())),
+                fmt::arg("bot_personality", GetPersonalityPromptAddition(GetBotPersonality(bot))),
+                fmt::arg("player_name", who->GetName()),
+                fmt::arg("player_level", who->GetLevel()),
+                fmt::arg("player_class", botAI->GetChatHelper()->FormatClass(who->getClass())),
+                fmt::arg("relationship", pick.second),
+                fmt::arg("sentiment", WovSentimentWords(g_EnableSentimentTracking ? GetBotPlayerSentiment(bRaw, pRaw) : 0.5f)));
+            prompt += Memory_BuildPromptSection(bot, who);
+            OllamaChatRequest request;
+            request.botGuid       = bRaw;
+            request.targetGuid    = pRaw;
+            request.recordHistory = true;
+            request.source        = SRC_WHISPER_LOCAL;
+            request.channelName   = "";
+            request.channelId     = 0;
+            request.chainDepth    = 0;
+            request.scopeKey      = Governor_MakeScopeKey(ChatChannelSourceLocalStr[SRC_WHISPER_LOCAL], 0, "", 0, 0);
+            request.prompt        = std::move(prompt);
+            request.botName       = bot->GetName();
+            request.maxWords      = 25;
+            request.kind          = OllamaRequestKind::RandomChatter;
+            request.triggerBotReplies = false;
+            if (g_DebugEnabled)
+                LOG_INFO("module.ollamachat", "[Ollama Chat] WoV friend login: {} whispers {}", bot->GetName(), who->GetName());
+            OllamaDispatch_Submit(std::move(request));
+        }
+    }
+
     std::string BuildRandomChatterPrompt(Player* bot, const std::string& environmentInfo, bool guildTopic, bool trade,
                                          uint32_t& outMaxWords, const std::string& targetName = {})
     {
@@ -452,6 +526,7 @@ void OllamaBotRandomChatter::HandleRandomChatter()
     // One pass for the whole tick. GuildHasRealPlayerOnline() used to be a
     // full player walk per bot, so this was O(bots x players) every 30s.
     OllamaWorldSnapshot world;
+    WovProcessFriendLogins(time(nullptr));  // wov
     world.Build();
 
     // A realm with nobody logged in is still full of people. This guard is upstream's and it predates
@@ -652,4 +727,13 @@ void OllamaBotRandomChatter::HandleRandomChatter()
 
         reschedule();
     }
+}
+
+// wov: queue a friend's whisper for a real player who just logged in
+void WovQueueFriendLogin(uint64_t playerGuid)
+{
+    if (!g_WovFriendLoginEnable || g_WovFriendLoginTemplate.empty())
+        return;
+    std::lock_guard<std::mutex> lock(g_wovLoginMutex);
+    g_wovLoginQueue.emplace_back(playerGuid, time(nullptr) + urand(25, 80));
 }
