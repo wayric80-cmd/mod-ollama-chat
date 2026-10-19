@@ -1261,6 +1261,14 @@ namespace
                                      bot->GetName(), c.text.substr(0, cut));
                         c.text = c.text.substr(cut);
                     }
+                    else
+                    {
+                        // The whole reply was the echo: say nothing rather than parrot.
+                        if (g_DebugEnabled)
+                            LOG_INFO("module.ollamachat", "[Ollama Chat] Bot {} pure echo dropped: {}",
+                                     bot->GetName(), c.text);
+                        return;
+                    }
                 }
             }
         }
