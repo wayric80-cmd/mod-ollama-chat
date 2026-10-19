@@ -1287,7 +1287,7 @@ namespace
                                      bot->GetName(), c.text.substr(0, cut));
                         c.text = c.text.substr(cut);
                     }
-                    else
+                    else if (!shortOrigin)
                     {
                         // The whole reply was the echo: say nothing rather than parrot.
                         if (g_DebugEnabled)
