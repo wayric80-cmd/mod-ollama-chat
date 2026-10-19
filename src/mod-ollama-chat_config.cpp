@@ -296,6 +296,12 @@ uint32_t    g_DirectorInnRange              = 8;
 uint32_t    g_DirectorInnCooldownMinutes    = 30;
 std::string g_DirectorInnEventType          = "said to you as you came into the inn:";
 uint32_t    g_RelationshipMaxLength         = 220;
+bool        g_WovRelationshipRealOnly       = true;   // wov: relationships only toward real players
+float       g_WovPvpGrudge                  = 0.15f;  // wov: sentiment drop when a real player kills the bot
+bool        g_WovGreetEnable                = false;  // wov: greet known real players nearby
+uint32_t    g_WovGreetChance                = 40;
+uint32_t    g_WovGreetHours                 = 3;
+std::string g_WovGreetTemplate;
 std::string g_RelationshipUpdatePrompt;
 std::string g_RelationshipPromptTemplate;
 
@@ -859,6 +865,12 @@ void LoadOllamaChatConfig()
     g_DirectorInnEventType         = sConfigMgr->GetOption<std::string>("OllamaChat.Director.InnEventType",
         "said to you as you came into the inn:");
     g_RelationshipMaxLength        = sConfigMgr->GetOption<uint32_t>("OllamaChat.Relationship.MaxLength", 220);
+    g_WovRelationshipRealOnly      = sConfigMgr->GetOption<bool>("OllamaChat.WoV.RelationshipRealOnly", true);
+    g_WovPvpGrudge                 = sConfigMgr->GetOption<float>("OllamaChat.WoV.PvpGrudge", 0.15f);
+    g_WovGreetEnable               = sConfigMgr->GetOption<bool>("OllamaChat.WoV.Greet.Enable", false);
+    g_WovGreetChance               = sConfigMgr->GetOption<uint32_t>("OllamaChat.WoV.Greet.Chance", 40);
+    g_WovGreetHours                = sConfigMgr->GetOption<uint32_t>("OllamaChat.WoV.Greet.Hours", 3);
+    g_WovGreetTemplate             = sConfigMgr->GetOption<std::string>("OllamaChat.WoV.Greet.Template", "");
 
     g_RelationshipUpdatePrompt     = sConfigMgr->GetOption<std::string>("OllamaChat.Relationship.UpdatePrompt", "");
     if (g_RelationshipUpdatePrompt.empty())

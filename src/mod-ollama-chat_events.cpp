@@ -617,6 +617,15 @@ void ChatOnKill::OnPlayerPVPKill(Player* killer, Player* killed)
 {
     if (killer && killed)
         eventChatter.DispatchGameEvent(killer, g_EventTypeDefeatedPlayer, killed->GetName());
+
+    // wov: a bot killed by a real player holds a grudge against that player
+    if (killer && killed && g_EnableSentimentTracking && g_WovPvpGrudge > 0.0f &&
+        OllamaIsBotPlayer(killed) && !OllamaIsBotPlayer(killer))
+    {
+        const uint64_t b = killed->GetGUID().GetRawValue();
+        const uint64_t p = killer->GetGUID().GetRawValue();
+        SetBotPlayerSentiment(b, p, GetBotPlayerSentiment(b, p) - g_WovPvpGrudge);
+    }
 }
 
 void ChatOnKill::OnPlayerCreatureKilledByPet(Player* owner, Creature* victim)

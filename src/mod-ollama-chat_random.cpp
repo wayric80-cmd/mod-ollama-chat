@@ -11,6 +11,8 @@
 #include "mod-ollama-chat_memory.h"
 #include "mod-ollama-chat_topics.h"
 #include "mod-ollama-chat_world.h"
+#include <cmath>
+#include <unordered_map>
 #include "mod-ollama-chat_expression.h"
 #include "mod-ollama-chat-utilities.h"
 
@@ -187,6 +189,91 @@ namespace
         outChannelName = chosen.channelName;
         outChannelId   = chosen.channelId;
         return true;
+    }
+
+    // ---- wov: running into someone you know ------------------------------------------------------
+    std::unordered_map<uint64_t, std::unordered_map<uint64_t, time_t>> g_wovLastGreet;
+
+    std::string WovSentimentWords(float v)
+    {
+        if (v <= 0.2f) return "You can't stand them.";
+        if (v <= 0.38f) return "You don't really like them.";
+        if (v >= 0.8f) return "You really like them, they're a good friend.";
+        if (v >= 0.62f) return "You like them.";
+        return "";
+    }
+
+    // Returns true when a greeting was sent (the bot's ambient turn is then spent).
+    bool WovTryGreetKnown(Player* bot, time_t now)
+    {
+        if (!g_WovGreetEnable || !bot->GetMap())
+            return false;
+        PlayerbotAI* botAI = PlayerbotsMgr::instance().GetPlayerbotAI(bot);
+        if (!botAI || !botAI->GetChatHelper())
+            return false;
+        const uint64_t botRaw = bot->GetGUID().GetRawValue();
+
+        Player* who = nullptr;
+        std::string relation;
+        float sentiment = 0.5f;
+        for (auto const& ref : bot->GetMap()->GetPlayers())
+        {
+            Player* p = ref.GetSource();
+            if (!p || p == bot || !p->IsInWorld() || !p->IsAlive() || OllamaIsBotPlayer(p))
+                continue;
+            if (!bot->IsWithinDistInMap(p, g_SayDistance))
+                continue;
+            const uint64_t pRaw = p->GetGUID().GetRawValue();
+            time_t& last = g_wovLastGreet[botRaw][pRaw];
+            if (last && now < last + time_t(g_WovGreetHours) * 3600)
+                continue;
+            std::string rel = Memory_RelationshipWith(botRaw, pRaw);
+            float s = g_EnableSentimentTracking ? GetBotPlayerSentiment(botRaw, pRaw) : 0.5f;
+            if (rel.empty() && std::fabs(s - 0.5f) < 0.1f)
+                continue;
+            who = p; relation = rel; sentiment = s;
+            break;
+        }
+        if (!who || urand(0, 99) >= g_WovGreetChance)
+            return false;
+
+        g_wovLastGreet[botRaw][who->GetGUID().GetRawValue()] = now;
+        const std::string personality = GetPersonalityPromptAddition(GetBotPersonality(bot));
+        std::string prompt = SafeFormat(g_WovGreetTemplate,
+            fmt::arg("bot_name", bot->GetName()),
+            fmt::arg("bot_level", bot->GetLevel()),
+            fmt::arg("bot_class", botAI->GetChatHelper()->FormatClass(bot->getClass())),
+            fmt::arg("bot_race", botAI->GetChatHelper()->FormatRace(bot->getRace())),
+            fmt::arg("bot_personality", personality),
+            fmt::arg("player_name", who->GetName()),
+            fmt::arg("player_level", who->GetLevel()),
+            fmt::arg("player_class", botAI->GetChatHelper()->FormatClass(who->getClass())),
+            fmt::arg("relationship", relation.empty() ? std::string("You have run into them before.") : relation),
+            fmt::arg("sentiment", WovSentimentWords(sentiment)));
+        prompt += Memory_BuildPromptSection(bot, who);
+
+        const std::string scopeKey = Governor_MakeScopeKey(ChatChannelSourceLocalStr[SRC_SAY_LOCAL], 0, "", 0,
+                                                           bot->GetZoneId());
+        if (!Governor_CanSend(bot->GetGUID(), scopeKey))
+            return false;
+
+        OllamaChatRequest request;
+        request.botGuid       = botRaw;
+        request.targetGuid    = who->GetGUID().GetRawValue();
+        request.recordHistory = true;
+        request.source        = SRC_SAY_LOCAL;
+        request.channelName   = "";
+        request.channelId     = 0;
+        request.chainDepth    = 0;
+        request.scopeKey      = scopeKey;
+        request.prompt        = std::move(prompt);
+        request.botName       = bot->GetName();
+        request.maxWords      = 25;
+        request.kind          = OllamaRequestKind::RandomChatter;
+        request.triggerBotReplies = false;
+        if (g_DebugEnabled)
+            LOG_INFO("module.ollamachat", "[Ollama Chat] WoV greet: {} -> {}", bot->GetName(), who->GetName());
+        return OllamaDispatch_Submit(std::move(request));
     }
 
     std::string BuildRandomChatterPrompt(Player* bot, const std::string& environmentInfo, bool guildTopic, bool trade,
@@ -422,6 +509,10 @@ void OllamaBotRandomChatter::HandleRandomChatter()
             continue;
 
         if (Conversation_HasPartner(bot))
+            continue;
+
+        // wov: someone this bot knows is standing right here
+        if (nearRealPlayer && WovTryGreetKnown(bot, now))
             continue;
 
         // Schedule.

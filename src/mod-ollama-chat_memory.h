@@ -140,6 +140,9 @@ bool Memory_IsCompanion(uint64_t botGuid);
 // budget.
 std::string Memory_BuildPromptSection(Player* bot, Player* about);
 
+// wov: this bot's current view of another player (empty if none yet)
+std::string Memory_RelationshipWith(uint64_t botGuid, uint64_t otherGuid);
+
 // --- worker-side entry points (called from the dispatcher) ----------------
 
 // Condense a bot's accumulated history into memories, then clear the history.

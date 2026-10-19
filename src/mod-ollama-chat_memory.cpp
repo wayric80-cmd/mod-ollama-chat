@@ -5,6 +5,7 @@
 #include "mod-ollama-chat_handler.h"
 #include "mod-ollama-chat_personality.h"
 #include "mod-ollama-chat_roleplay.h"
+#include "mod-ollama-chat_world.h"
 #include "mod-ollama-chat-utilities.h"
 
 #include "Config.h"
@@ -846,7 +847,10 @@ void Memory_NoteExchange(uint64_t botGuid, uint64_t otherGuid,
         return;
 
     // ---- relationship mention counting ---------------------------------
-    if (g_RelationshipEnable && otherGuid != 0 && !otherName.empty())
+    // wov: a bot keeps a running opinion only of real players (bot-to-bot chatter would flood the model)
+    if (g_RelationshipEnable && otherGuid != 0 && !otherName.empty() &&
+        !(g_WovRelationshipRealOnly && (!ObjectAccessor::FindPlayer(ObjectGuid(otherGuid)) ||
+                                        OllamaIsBotPlayer(ObjectAccessor::FindPlayer(ObjectGuid(otherGuid))))))
     {
         const std::string combined = incomingMessage + " " + botReply;
         const uint32_t hits = 1 + CountMentions(combined, otherName);
@@ -1590,4 +1594,15 @@ void Memory_RunRelationshipUpdate(uint64_t botGuid, uint64_t otherGuid,
         LOG_INFO("module.ollamachat",
                  "[Ollama Chat] Bot {} relationship with {} updated: {}",
                  botGuid, otherName, rel.description);
+}
+
+// wov: this bot's current view of another player (empty if none yet)
+std::string Memory_RelationshipWith(uint64_t botGuid, uint64_t otherGuid)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+    auto it = g_state.find(botGuid);
+    if (it == g_state.end())
+        return "";
+    auto r = it->second.relationships.find(otherGuid);
+    return r == it->second.relationships.end() ? std::string() : r->second.description;
 }
