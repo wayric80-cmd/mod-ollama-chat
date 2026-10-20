@@ -1195,6 +1195,15 @@ namespace
         // time in ProcessChat, where the Group was live to consult.
         const bool directAddress = c.request.directAddress;
 
+        // wov: the model sometimes writes the chat command itself ("/yell where's the fp?"). Drop it.
+        if (!c.text.empty() && c.text[0] == '/')
+        {
+            size_t sp = c.text.find(' ');
+            c.text = sp == std::string::npos ? std::string() : c.text.substr(sp + 1);
+            if (c.text.empty())
+                return;
+        }
+
         // wov: snapshot leak. The model sometimes copies the game-state block it
         // was given ("NOT IN COMBAT", "WHAT IS GOING ON IN YOUR GAME RIGHT NOW")
         // onto the end of a reply. Cut the reply at the first such marker.
