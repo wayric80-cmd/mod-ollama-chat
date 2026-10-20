@@ -587,8 +587,8 @@ void OllamaBotRandomChatter::HandleRandomChatter()
         if (Conversation_HasPartner(bot))
             continue;
 
-        // wov: inside a dungeon people talk about the run (event reactions and replies), not random topics
-        if (bot->GetMap() && bot->GetMap()->IsDungeon())
+        // wov: inside a dungeon the group talks now and then (the prompt keeps it about the run), not constantly
+        if (bot->GetMap() && bot->GetMap()->IsDungeon() && urand(0, 99) >= 35)
             continue;
 
         // wov: someone this bot knows is standing right here
