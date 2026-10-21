@@ -1,4 +1,7 @@
 #include "mod-ollama-chat_random.h"
+#include <string>
+class Player;
+std::string WovIntentSection(Player* bot);  // wov: mod-ollama-chat_sentiment.cpp
 #include "mod-ollama-chat_config.h"
 #include "mod-ollama-chat_conversation.h"
 #include "mod-ollama-chat_response.h"
@@ -421,6 +424,7 @@ namespace
         prompt += Chronicle_RumourSection(bot, variation.find("rumo") != std::string::npos);
         prompt += Market_Section(bot, trade);
         prompt += Place_Section(bot);
+    prompt += WovIntentSection(bot);  // wov: stay consistent with own LFG/LFM posts
         prompt += Roleplay_BuildVoicePrompt(bot);
         prompt += Expression_BuildGesturePrompt();
 

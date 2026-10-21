@@ -875,6 +875,16 @@ std::string Place_Section(Player* bot)
         + it->second[urand(0, uint32(it->second.size() - 1))] + "\n";
 }
 
+// wov: what the bot has said it is doing in the channels (mod-playerbots, RandomPlayerbotMgr.cpp WovIntentOf)
+std::string WovIntentOf(uint32 low);
+std::string WovIntentSection(Player* bot)
+{
+    if (!bot)
+        return "";
+    std::string s = WovIntentOf(bot->GetGUID().GetCounter());
+    return s.empty() ? std::string() : "\n" + s + "\n";
+}
+
 std::string QuestWords_For(uint32_t questId)
 {
     // Off, or no table, or no phrasing for this errand: the caller gets nothing and must then leave the

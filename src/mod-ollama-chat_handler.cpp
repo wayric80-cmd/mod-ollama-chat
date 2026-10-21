@@ -1,4 +1,7 @@
 ﻿#include "Log.h"
+#include <string>
+class Player;
+std::string WovIntentSection(Player* bot);  // wov: mod-ollama-chat_sentiment.cpp
 #include "Language.h"
 #include "Player.h"
 #include "Chat.h"
@@ -2522,6 +2525,7 @@ std::string GenerateBotPrompt(Player* bot, std::string playerMessage, Player* pl
     prompt += Chronicle_RumourSection(bot, true);
     prompt += Market_Section(bot, false);
     prompt += Place_Section(bot);
+    prompt += WovIntentSection(bot);  // wov: stay consistent with own LFG/LFM posts
 
     // Race and class as a voice rather than as a stat line.
     prompt += Roleplay_BuildVoicePrompt(bot);

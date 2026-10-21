@@ -1,4 +1,7 @@
 #include "mod-ollama-chat_events.h"
+#include <string>
+class Player;
+std::string WovIntentSection(Player* bot);  // wov: mod-ollama-chat_sentiment.cpp
 #include "mod-ollama-chat_config.h"
 #include "mod-ollama-chat_world.h"
 #include "mod-ollama-chat_expression.h"
@@ -471,6 +474,7 @@ std::string OllamaBotEventChatter::BuildPrompt(Player* bot, std::string promptTe
     prompt += Regard_PromptSection(bot, nullptr);
     prompt += Regard_CompanySection(bot, actor, false);
     prompt += Place_Section(bot);
+    prompt += WovIntentSection(bot);  // wov: stay consistent with own LFG/LFM posts
     prompt += Roleplay_BuildVoicePrompt(bot);
     prompt += Expression_BuildGesturePrompt();
 
