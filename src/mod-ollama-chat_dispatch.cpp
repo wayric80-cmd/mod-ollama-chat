@@ -1,3 +1,4 @@
+#include "wov_model_tiers.h"
 #include "wov_player_voice.h"
 #include <cctype>
 #include "mod-ollama-chat_dispatch.h"
@@ -256,7 +257,7 @@ namespace
     {
         // The speaker's guid rides along so this character can have its own
         // sampling offset (plan 49 item 3c); it is inert until the conf enables it.
-        OllamaApiResult api = QueryOllama(task.request.prompt, task.request.kind, task.request.botGuid, task.request.lane);
+        OllamaApiResult api = QueryOllama(task.request.prompt, task.request.kind, task.request.botGuid, task.request.lane, task.request.modelRoute);
 
         if (!api.ok)
         {
@@ -1639,6 +1640,10 @@ bool OllamaDispatch_Submit(OllamaChatRequest request)
 {
     if (request.prompt.empty() || request.botGuid == 0)
         return false;
+
+    request.modelRoute = WovPremiumModelRoute(request);
+    if (!request.modelRoute.empty())
+        request.lane = OllamaLane::Person;
 
     Task task;
     task.type    = TaskType::ChatReply;

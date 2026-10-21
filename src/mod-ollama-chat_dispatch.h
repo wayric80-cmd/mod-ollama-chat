@@ -71,6 +71,7 @@ struct OllamaChatRequest
     // Person when this answers something a real player said; the lane only
     // changes the model when OllamaChat.Reply.Model is set.
     OllamaLane        lane = OllamaLane::Voice;
+    std::string       modelRoute; // optional trusted route, resolved on the world thread
 
     // Resolved on the world thread before submission so the worker never has
     // to touch a Player to know these.

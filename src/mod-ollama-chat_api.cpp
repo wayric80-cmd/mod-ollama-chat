@@ -301,7 +301,7 @@ OllamaEndpointSettings OllamaConfig_Snapshot()
     return g_settings;
 }
 
-OllamaApiResult QueryOllama(const std::string& prompt, OllamaRequestKind kind, uint64_t voiceGuid, OllamaLane lane)
+OllamaApiResult QueryOllama(const std::string& prompt, OllamaRequestKind kind, uint64_t voiceGuid, OllamaLane lane, const std::string& routeOverride)
 {
     OllamaApiResult result;
 
@@ -327,19 +327,20 @@ OllamaApiResult QueryOllama(const std::string& prompt, OllamaRequestKind kind, u
     // PerformOnce posts to cfg.url, so both have to change together or the
     // lane's model name is sent to the voice model's backend.
     const bool toUtility = (kind == OllamaRequestKind::Classify) && !cfg.utilityModel.empty();
+    const bool toCustom  = !toUtility && !routeOverride.empty();
     const bool toPerson  = !toUtility && lane == OllamaLane::Person && !cfg.replyModel.empty();
-    const bool routed    = toUtility || toPerson;
+    const bool routed    = toUtility || toPerson || toCustom;
     if (toUtility)
     {
         cfg.model = cfg.utilityModel;
         if (!cfg.utilityUrl.empty())
             cfg.url = cfg.utilityUrl;
     }
-    else if (toPerson)
+    else if (toPerson || toCustom)
     {
         // The person lane is another model too, so the same rule holds: the url
         // moves with it, and nothing learned here is about the voice model.
-        cfg.model = cfg.replyModel;
+        cfg.model = toCustom ? routeOverride : cfg.replyModel;
         if (!cfg.replyUrl.empty())
             cfg.url = cfg.replyUrl;
         if (cfg.replyNumPredict > 0)
@@ -361,7 +362,7 @@ OllamaApiResult QueryOllama(const std::string& prompt, OllamaRequestKind kind, u
     // for, or because this model produces it regardless.
     // Preserve the utility lane's existing reserve policy. Only the optional
     // person lane bypasses the voice model's reasoning headroom.
-    const bool expectReasoning = !toPerson && (think.wanted || OllamaCapability_ReasonsUnconditionally());
+    const bool expectReasoning = !toPerson && !toCustom && (think.wanted || OllamaCapability_ReasonsUnconditionally());
     const uint32_t reserve     = expectReasoning ? g_ReasoningTokenReserve : 0;
 
     // Every attempt goes through here so a refused reasoning level self-heals

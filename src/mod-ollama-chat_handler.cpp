@@ -1,4 +1,8 @@
-﻿#include "Log.h"
+﻿#include "wov_model_tiers.h"
+#include "Group.h"
+#include "WorldSession.h"
+#include <unordered_set>
+#include "Log.h"
 #include <string>
 class Player;
 std::string WovIntentSection(Player* bot);  // wov: mod-ollama-chat_sentiment.cpp
@@ -2667,4 +2671,115 @@ void OllamaChatMaintenance::OnPlayerLogout(Player* player)
     Memory_ForgetBot(guid);
     OllamaRandomChatter_ForgetBot(guid);
     Topics_ForgetBot(guid);
+}
+
+namespace
+{
+// Read once a minute on the world thread; no DB/player access from HTTP workers.
+std::unordered_set<uint32> const& WovPremiumAccounts()
+{
+    static time_t loaded = 0;
+    static std::unordered_set<uint32> accounts;
+    time_t now = time(nullptr);
+    if (!loaded || now >= loaded + 60)
+    {
+        loaded = now;
+        accounts.clear();
+        if (QueryResult rows = CharacterDatabase.Query("SELECT account_id FROM wov_premium_player"))
+            do { accounts.insert(rows->Fetch()[0].Get<uint32>()); } while (rows->NextRow());
+    }
+    return accounts;
+}
+WovTier::Scope WovTierScope(ChatChannelSourceLocal source)
+{
+    using WovTier::Scope;
+    switch (source)
+    {
+        case SRC_WHISPER_LOCAL: return Scope::Whisper;
+        case SRC_GUILD_LOCAL: case SRC_OFFICER_LOCAL: return Scope::Guild;
+        case SRC_PARTY_LOCAL: case SRC_RAID_LOCAL: return Scope::Group;
+        case SRC_GENERAL_LOCAL: return Scope::Channel;
+        case SRC_SAY_LOCAL: return Scope::Say;
+        case SRC_YELL_LOCAL: return Scope::Yell;
+        default: return Scope::Other;
+    }
+}
+}
+
+std::string WovPremiumModelRoute(OllamaChatRequest const& request)
+{
+    if (request.kind != OllamaRequestKind::ChatReply && request.kind != OllamaRequestKind::RoleplayReply &&
+        request.kind != OllamaRequestKind::RandomChatter && request.kind != OllamaRequestKind::EventChatter)
+        return {};
+    std::string route = sConfigMgr->GetOption<std::string>("OllamaChat.WoV.PremiumModel", "");
+    bool byRank = sConfigMgr->GetOption<bool>("OllamaChat.WoV.PremiumByGuildRank", false);
+    bool byAccount = sConfigMgr->GetOption<bool>("OllamaChat.WoV.PremiumByAccount", false);
+    if (route.empty() || (!byRank && !byAccount))
+        return {};
+    Player* bot = ObjectAccessor::FindConnectedPlayer(ObjectGuid(request.botGuid));
+    if (!bot || !bot->IsInWorld())
+        return {};
+    auto scope = WovTierScope(request.source);
+    Player* recipient = request.targetGuid ? ObjectAccessor::FindConnectedPlayer(ObjectGuid(request.targetGuid)) : nullptr;
+    auto isPremium = [byAccount](Player* p)
+    {
+        return byAccount && p && p->IsInWorld() && p->GetSession() && !p->GetSession()->IsBot() &&
+            WovPremiumAccounts().count(p->GetSession()->GetAccountId()) != 0;
+    };
+    bool addressedReply = request.lane == OllamaLane::Person &&
+        (request.kind == OllamaRequestKind::ChatReply || request.kind == OllamaRequestKind::RoleplayReply);
+    bool premiumRecipient = (scope == WovTier::Scope::Whisper || addressedReply) && isPremium(recipient) &&
+        (!g_WovNoCrossFaction || recipient->GetTeamId() == bot->GetTeamId());
+    bool premiumAudience = false;
+    bool realGuildOnline = false;
+    Channel* channel = nullptr;
+    if (byAccount && scope == WovTier::Scope::Channel)
+    {
+        // Prefer the actual channel name (including Trade/city channels), then
+        // resolve numbered zone/global channels when the request only has an ID.
+        if (ChannelMgr* mgr = ChannelMgr::forTeam(bot->GetTeamId()))
+            for (auto const& [key, candidate] : mgr->GetChannels())
+                if (candidate && candidate->GetName() == request.channelName)
+                {
+                    channel = candidate;
+                    break;
+                }
+        if (!channel && request.channelId)
+            channel = OllamaResolveZoneChannel(bot, request.channelId);
+    }
+    if (byRank || byAccount)
+    {
+        for (auto const& [id, session] : sWorldSessionMgr->GetAllSessions())
+        {
+            Player* p = session ? session->GetPlayer() : nullptr;
+            if (!p || !p->IsInWorld() || session->IsBot())
+                continue;
+            WovTier::Audience a;
+            a.realOnline = true;
+            a.factionAllowed = !g_WovNoCrossFaction || p->GetTeamId() == bot->GetTeamId();
+            a.sameGuild = bot->GetGuildId() && p->GetGuildId() == bot->GetGuildId();
+            if (request.source == SRC_OFFICER_LOCAL && a.sameGuild)
+                a.sameGuild = bot->GetGuild() && bot->GetGuild()->HasRankRight(p, GR_RIGHT_OFFCHATLISTEN);
+            if (a.sameGuild && a.factionAllowed)
+                realGuildOnline = true;
+            if (!isPremium(p) || scope == WovTier::Scope::Whisper)
+                continue;
+            a.sameGroup = bot->GetGroup() && p->GetGroup() == bot->GetGroup();
+            a.inChannel = channel && p->IsInChannel(channel);
+            a.sameMapPhase = p->IsAlive() && p->GetMap() == bot->GetMap() && p->InSamePhase(bot);
+            a.distance = a.sameMapPhase ? bot->GetDistance(p) : 100000.0f;
+            if (WovTier::CanHear(scope, a, g_SayDistance, g_YellDistance))
+            {
+                premiumAudience = true;
+            }
+        }
+    }
+    uint32 maxRank = std::min<uint32>(9, sConfigMgr->GetOption<uint32>("OllamaChat.WoV.PremiumMaxRank", 2));
+    bool eligible = WovTier::UsePremium(byAccount, premiumRecipient, premiumAudience, byRank,
+        bot->GetGuildId() != 0, bot->GetRank(), maxRank, realGuildOnline,
+        request.lane == OllamaLane::Person, scope == WovTier::Scope::Guild);
+    if (eligible && g_DebugEnabled)
+        LOG_INFO("module.ollamachat", "WoV model tier: {} -> {} (account {}, audience {}, guild rank {})",
+                 bot->GetName(), route, premiumRecipient, premiumAudience, bot->GetRank());
+    return eligible ? route : std::string();
 }

@@ -103,7 +103,7 @@ OllamaEndpointSettings OllamaConfig_Snapshot();
 // item 3c). 0 means "not a character speaking" -- machinery calls leave it out
 // and are never jittered.
 OllamaApiResult QueryOllama(const std::string& prompt, OllamaRequestKind kind, uint64_t voiceGuid = 0,
-                            OllamaLane lane = OllamaLane::Voice);
+                            OllamaLane lane = OllamaLane::Voice, const std::string& routeOverride = {});
 
 // Legacy shim: returns the text, or empty on any failure.
 std::string QueryOllamaAPI(const std::string& prompt);
