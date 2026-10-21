@@ -1,3 +1,4 @@
+#include "wov_player_voice.h"
 #include <cctype>
 #include "mod-ollama-chat_dispatch.h"
 #include "mod-ollama-chat_api.h"
@@ -497,6 +498,12 @@ namespace
 
         // The first message of a split reply, or the whole line.
         const std::string& text = c.parts.empty() ? c.text : c.parts.front();
+
+        if (Wov::IsSelfNarration(text, bot->GetName()))
+        {
+            LOG_INFO("module.ollamachat", "WoV player voice: self narration suppressed for {}", bot->GetName());
+            return false;
+        }
 
         switch (c.request.source)
         {
