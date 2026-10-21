@@ -12,6 +12,20 @@ std::string WovIntentSection(Player* bot);  // wov: mod-ollama-chat_sentiment.cp
 #include "Common.h"
 #include "Guild.h"
 #include "GuildMgr.h"
+#include "WorldSessionMgr.h"
+// wov: a guild with a real player online gets the person model for all its guild chat (plays out where they read it)
+bool WovRealInGuild(uint32 guildId)
+{
+    if (!guildId)
+        return false;
+    for (auto const& [id, session] : sWorldSessionMgr->GetAllSessions())
+    {
+        Player* p = session ? session->GetPlayer() : nullptr;
+        if (p && !session->IsBot() && p->IsInWorld() && p->GetGuildId() == guildId)
+            return true;
+    }
+    return false;
+}
 #include "ObjectAccessor.h"
 #include "World.h"
 #include "AiFactory.h"
@@ -2216,7 +2230,10 @@ bool OllamaSubmitBotReply(Player* bot, Player* sender, const std::string& msg,
                        : OllamaRequestKind::ChatReply;
     // A person spoke and is waiting on this answer; a bot remarking to another
     // bot is ambient, however directly it was put.
-    request.lane = senderIsBot ? OllamaLane::Voice : OllamaLane::Person;
+    request.lane = (!senderIsBot ||
+                    ((sourceLocal == SRC_GUILD_LOCAL || sourceLocal == SRC_OFFICER_LOCAL) && WovRealInGuild(bot->GetGuildId())))
+                       ? OllamaLane::Person
+                       : OllamaLane::Voice;
     request.triggerBotReplies = (sourceLocal != SRC_WHISPER_LOCAL);
     // Remember an exchange with a person always, and with a companion when they are in the same company.
     // This was `!senderIsBot`, so everything bots said to each other was forgotten the moment it was said:

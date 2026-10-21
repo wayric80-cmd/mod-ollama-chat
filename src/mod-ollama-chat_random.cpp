@@ -1,4 +1,5 @@
 #include "mod-ollama-chat_random.h"
+bool WovRealInGuild(uint32 guildId);  // wov: mod-ollama-chat_handler.cpp
 #include <string>
 class Player;
 std::string WovIntentSection(Player* bot);  // wov: mod-ollama-chat_sentiment.cpp
@@ -729,6 +730,8 @@ void OllamaBotRandomChatter::HandleRandomChatter()
         request.maxWords    = maxWords;
         request.kind        = OllamaRequestKind::RandomChatter;
         request.triggerBotReplies = true;
+        if (source == SRC_GUILD_LOCAL && WovRealInGuild(bot->GetGuildId()))
+            request.lane = OllamaLane::Person;  // wov: guild chat a real player reads goes to the person model
 
         if (OllamaDispatch_Submit(std::move(request)))
             Topics_NoteUsed(bot->GetGUID(), topic.key);
