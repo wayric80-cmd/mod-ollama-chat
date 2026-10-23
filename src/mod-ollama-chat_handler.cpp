@@ -6,6 +6,7 @@
 #include <string>
 class Player;
 std::string WovIntentSection(Player* bot);  // wov: mod-ollama-chat_sentiment.cpp
+bool WovCraft_Claims(std::string const& msg, bool whisper);  // wov: mod-playerbots RandomPlayerbotMgr.cpp
 #include "Language.h"
 #include "Player.h"
 #include "Chat.h"
@@ -357,6 +358,9 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
     if (!g_Enable)
         return true;
 
+    if (WovCraft_Claims(msg, false))  // wov: crafting requests are answered by mod-playerbots
+        return true;
+
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
     ProcessChat(player, type, lang, msg, sourceLocal, channel, nullptr);
     return true;
@@ -383,6 +387,9 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
 
         PlayerbotAI* receiverAI = PlayerbotsMgr::instance().GetPlayerbotAI(receiver);
         if (!receiverAI || !receiverAI->IsBotAI())
+            return true;
+
+        if (WovCraft_Claims(msg, true))  // wov: crafting requests are answered by mod-playerbots
             return true;
     }
 
