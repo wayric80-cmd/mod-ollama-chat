@@ -1644,6 +1644,12 @@ bool OllamaDispatch_Submit(OllamaChatRequest request)
     request.modelRoute = WovPremiumModelRoute(request);
     if (!request.modelRoute.empty())
         request.lane = OllamaLane::Person;
+    // wov: party/raid talk a real player reads goes to the person model, like guild chat
+    if (request.lane != OllamaLane::Person && (request.source == SRC_PARTY_LOCAL || request.source == SRC_RAID_LOCAL) &&
+        sConfigMgr->GetOption<bool>("OllamaChat.WoV.PartyPersonLane", true))
+        if (Player* b = ObjectAccessor::FindConnectedPlayer(ObjectGuid(request.botGuid)))
+            if (b->IsInWorld() && OllamaGroupHasRealPlayer(b))
+                request.lane = OllamaLane::Person;
 
     Task task;
     task.type    = TaskType::ChatReply;
