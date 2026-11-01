@@ -316,6 +316,15 @@ namespace
             }
             if (friends.empty())
                 continue;
+            // wov 1/11: at most one friend's hello per player every 4 hours (the operator got one at every relog and
+            // every server restart, from a different bot each time, all saying nearly the same thing)
+            {
+                static std::unordered_map<uint64_t, time_t> lastHello;
+                time_t& last = lastHello[pRaw];
+                if (last && now < last + 4 * 3600)
+                    continue;
+                last = now;
+            }
             auto const& pick = friends[urand(0, friends.size() - 1)];
             Player* bot = pick.first;
             PlayerbotAI* botAI = PlayerbotsMgr::instance().GetPlayerbotAI(bot);
@@ -335,6 +344,16 @@ namespace
                 fmt::arg("relationship", pick.second),
                 fmt::arg("sentiment", WovSentimentWords(g_EnableSentimentTracking ? GetBotPlayerSentiment(bRaw, pRaw) : 0.5f)));
             prompt += Memory_BuildPromptSection(bot, who);
+            {   // wov: one angle per hello, so they do not all come out as "hey, what are you up to tonight?"
+                static char const* const angles[] = {
+                    "Just a two- or three-word hello, nothing more.",
+                    "Say in a few words what you are doing right now in the game.",
+                    "Mention one specific thing you did together, briefly, if you remember one; otherwise just say hi.",
+                    "Ask one short, specific thing about their character (level, gear, where they are).",
+                    "A quick joke or tease that fits your personality, very short.",
+                    "Say you are busy but wave, in a few words."};
+                prompt += std::string("\nThis time: ") + angles[urand(0, 5)] + " Do not ask what they are up to tonight.\n";
+            }
             OllamaChatRequest request;
             request.botGuid       = bRaw;
             request.targetGuid    = pRaw;

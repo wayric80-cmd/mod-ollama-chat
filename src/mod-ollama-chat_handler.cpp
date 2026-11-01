@@ -6,6 +6,7 @@
 #include <string>
 class Player;
 std::string WovIntentSection(Player* bot);  // wov: mod-ollama-chat_sentiment.cpp
+std::string WovGameFacts(Player* bot, Player* asker, std::string const& msg);  // wov: mod-playerbots RandomPlayerbotMgr.cpp
 bool WovCraft_Claims(std::string const& msg, bool whisper);  // wov: mod-playerbots RandomPlayerbotMgr.cpp
 #include "Language.h"
 #include "Player.h"
@@ -2554,6 +2555,7 @@ std::string GenerateBotPrompt(Player* bot, std::string playerMessage, Player* pl
     prompt += Market_Section(bot, false);
     prompt += Place_Section(bot);
     prompt += WovIntentSection(bot);  // wov: stay consistent with own LFG/LFM posts
+    prompt += WovGameFacts(bot, player, playerMessage);  // wov: true answers for trainers and riding
 
     // Race and class as a voice rather than as a stat line.
     prompt += Roleplay_BuildVoicePrompt(bot);
