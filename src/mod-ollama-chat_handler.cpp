@@ -132,7 +132,7 @@ std::string WovGuild_Context(uint32 guildId, std::string const& botName)
             size_t n = 0;
             for (auto r = it->second.rbegin(); r != it->second.rend() && n < 10; ++r, ++n)
             {
-                if (r->ts < now - 1200)
+                if (r->ts < now - 420)  // wov 2/11: a line from 15 min ago was answered as if just said
                     break;
                 long m = long((now - r->ts) / 60);
                 lines = "- " + (r->name == botName ? std::string("you") : r->name) + ": " + r->text +
@@ -147,7 +147,7 @@ std::string WovGuild_Context(uint32 guildId, std::string const& botName)
         "what is true above (your own level, zone and what you are doing). If you have nothing natural to add, answer "
         "exactly [skip].\n";
     if (lines.empty())
-        return "\nGuild chat has been quiet for a while.\n" + rules;
+        return "\nGuild chat has been quiet for a while; do not bring back anything said earlier, start something new.\n" + rules;
     return "\nGuild chat just now (oldest first, the conversation you are in):\n" + lines + rules;
 }
 
