@@ -83,6 +83,126 @@ bool WovRealInGuild(uint32 guildId)
 #include "CellImpl.h"
 #include "Map.h"
 #include "GridNotifiers.h"
+#include <deque>
+#include <regex>
+
+// ---- wov: guild conversation (1/11) ---------------------------------------------------------------------------------
+// Guild chat read like fifty strangers each starting their own topic, answering questions nobody asked and claiming
+// levels they do not have. A guild talks as one conversation, carried mostly by a few regulars:
+//  - every guild line (bots and people) is noted per guild, and every guild prompt sees the last ones;
+//  - ambient guild lines come only from the guild's regulars (WoV.Guild.Regulars online bots, a stable pick) and a new
+//    topic only after the channel has been quiet a while (WoV.Guild.OpenQuietMin..Max seconds);
+//  - a bot line is answered by at most one other bot, a regular or one named; a person's line by up to two;
+//  - the model may answer [skip], and a line naming another level than the bot's own is dropped (dispatch).
+namespace
+{
+struct WovGuildLine
+{
+    time_t ts;
+    std::string name, text;
+    bool bot;
+};
+std::mutex g_wovGuildMutex;
+std::unordered_map<uint32, std::deque<WovGuildLine>> g_wovGuildLines;
+std::unordered_map<uint32, std::unordered_set<uint64_t>> g_wovGuildRegulars;
+std::unordered_map<uint32, time_t> g_wovGuildOpenAfter;
+}
+
+void WovGuild_Note(uint32 guildId, std::string const& name, std::string const& text, bool isBot)
+{
+    if (!guildId || text.empty())
+        return;
+    time_t now = time(nullptr);
+    std::lock_guard<std::mutex> lock(g_wovGuildMutex);
+    auto& d = g_wovGuildLines[guildId];
+    d.push_back({now, name, text, isBot});
+    while (d.size() > 14 || (!d.empty() && d.front().ts < now - 1800))
+        d.pop_front();
+}
+
+std::string WovGuild_Context(uint32 guildId, std::string const& botName)
+{
+    time_t now = time(nullptr);
+    std::string lines;
+    {
+        std::lock_guard<std::mutex> lock(g_wovGuildMutex);
+        auto it = g_wovGuildLines.find(guildId);
+        if (it != g_wovGuildLines.end())
+        {
+            size_t n = 0;
+            for (auto r = it->second.rbegin(); r != it->second.rend() && n < 10; ++r, ++n)
+            {
+                if (r->ts < now - 1200)
+                    break;
+                long m = long((now - r->ts) / 60);
+                lines = "- " + (r->name == botName ? std::string("you") : r->name) + ": " + r->text +
+                        (m > 0 ? " (" + std::to_string(m) + " min ago)" : std::string(" (just now)")) + "\n" + lines;
+            }
+        }
+    }
+    std::string rules =
+        "Keep guild chat one conversation: react to what was actually said, do not repeat a point someone already made, do "
+        "not answer a question nobody asked, do not congratulate anyone unless the chat shows they dinged or got something, "
+        "and say nothing about other people's levels, places or deeds unless the chat shows it. About yourself say only "
+        "what is true above (your own level, zone and what you are doing). If you have nothing natural to add, answer "
+        "exactly [skip].\n";
+    if (lines.empty())
+        return "\nGuild chat has been quiet for a while.\n" + rules;
+    return "\nGuild chat just now (oldest first, the conversation you are in):\n" + lines + rules;
+}
+
+void WovGuild_SetRegulars(uint32 guildId, std::vector<uint64_t> online)
+{
+    uint32 n = sConfigMgr->GetOption<uint32>("OllamaChat.WoV.Guild.Regulars", 10);
+    auto key = [guildId](uint64_t g) { return (g * 2654435761ULL) ^ (uint64_t(guildId) * 40503ULL); };
+    std::sort(online.begin(), online.end(), [&](uint64_t a, uint64_t b) { return key(a) < key(b); });
+    if (online.size() > n)
+        online.resize(n);
+    std::lock_guard<std::mutex> lock(g_wovGuildMutex);
+    g_wovGuildRegulars[guildId] = std::unordered_set<uint64_t>(online.begin(), online.end());
+}
+
+bool WovGuild_IsRegular(uint32 guildId, uint64_t guid)
+{
+    std::lock_guard<std::mutex> lock(g_wovGuildMutex);
+    auto it = g_wovGuildRegulars.find(guildId);
+    return it == g_wovGuildRegulars.end() || it->second.count(guid);
+}
+
+// a new topic only after the channel has been quiet a while, and only one opener at a time
+bool WovGuild_MayOpen(uint32 guildId, time_t now)
+{
+    uint32 qmin = sConfigMgr->GetOption<uint32>("OllamaChat.WoV.Guild.OpenQuietMin", 90);
+    uint32 qmax = std::max(qmin, sConfigMgr->GetOption<uint32>("OllamaChat.WoV.Guild.OpenQuietMax", 240));
+    std::lock_guard<std::mutex> lock(g_wovGuildMutex);
+    time_t& after = g_wovGuildOpenAfter[guildId];
+    if (now < after)
+        return false;
+    auto it = g_wovGuildLines.find(guildId);
+    if (it != g_wovGuildLines.end() && !it->second.empty() && it->second.back().ts > now - time_t(qmin))
+        return false;
+    after = now + time_t(urand(qmin, qmax));
+    return true;
+}
+
+// a bot saying it is another level than it is ("lvl 31 and grinding to 10", "level 13 and stuck in Orgrimmar")
+bool WovLineContradictsLevel(Player* bot, std::string const& text)
+{
+    if (!bot)
+        return false;
+    static std::regex const re(R"((?:\bi'?m\b|\bi am\b|\bmy\b|\bstill\b|\bjust hit\b|\bme\b)[^.!?]{0,20}?\b(?:lvl|level|lv)\s*(\d{1,2})\b)",
+                               std::regex::icase);
+    std::smatch m;
+    std::string t = text;
+    while (std::regex_search(t, m, re))
+    {
+        if (std::stoi(m[1].str()) != int(bot->GetLevel()))
+            return true;
+        t = m.suffix().str();
+    }
+    return false;
+}
+// ---- end wov: guild conversation --------------------------------------------------------------------------------------
 
 // Forward declarations for internal helper functions.
 static bool IsBotEligibleForChatChannelLocal(Player* bot, Player* player,
@@ -1369,6 +1489,11 @@ void PlayerBotChatHandler::ProcessChat(Player* player, uint32_t /*type*/, uint32
         return;
     }
     if (lang == LANG_ADDON) return;
+    if ((sourceLocal == SRC_GUILD_LOCAL) && player->GetGuildId())  // wov: the guild's conversation so far
+    {
+        PlayerbotAI* nai = PlayerbotsMgr::instance().GetPlayerbotAI(player);
+        WovGuild_Note(player->GetGuildId(), player->GetName(), msg, nai && nai->IsBotAI());
+    }
     std::string chanName = (channel != nullptr) ? channel->GetName() : "Unknown";
     uint32_t channelId = (channel != nullptr) ? channel->GetChannelId() : 0;
     std::string receiverName = (receiver != nullptr) ? receiver->GetName() : "None";
@@ -1991,6 +2116,9 @@ void PlayerBotChatHandler::ProcessChat(Player* player, uint32_t /*type*/, uint32
         {
             for (Player* bot : candidateBots)
             {
+                // wov: in guild chat a bot's line gets at most one bot answer, a person's at most two
+                if (sourceLocal == SRC_GUILD_LOCAL && finalCandidates.size() >= (senderIsBot ? 1u : 2u))
+                    break;
                 if (!g_CombatReplies && bot->IsInCombat())
                 {
                     if(g_DebugEnabled)
@@ -2012,6 +2140,10 @@ void PlayerBotChatHandler::ProcessChat(Player* player, uint32_t /*type*/, uint32
                 // on whether to acknowledge your next sentence.
                 const bool botIsAddressed =
                     OllamaIsDirectAddress(bot, player, sourceLocal, trimmedMsg, senderIsBot, scopeKey);
+                // wov: unaddressed guild chat is answered by the guild's regulars only
+                if (sourceLocal == SRC_GUILD_LOCAL && !botIsAddressed &&
+                    !WovGuild_IsRegular(bot->GetGuildId(), bot->GetGUID().GetRawValue()))
+                    continue;
                 const uint32_t botChance = botIsAddressed
                                                ? std::max(chance, g_DirectAddressReplyChance)
                                                : chance;
@@ -2222,6 +2354,8 @@ bool OllamaSubmitBotReply(Player* bot, Player* sender, const std::string& msg,
     std::string prompt = GenerateBotPrompt(bot, msg, sender, &maxWords);
     if (prompt.empty())
         return false;
+    if (sourceLocal == SRC_GUILD_LOCAL && bot->GetGuildId())  // wov: the guild conversation it answers into
+        prompt += WovGuild_Context(bot->GetGuildId(), bot->GetName());
 
     OllamaChatRequest request;
     request.botGuid     = bot->GetGUID().GetRawValue();

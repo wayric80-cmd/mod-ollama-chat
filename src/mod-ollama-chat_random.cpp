@@ -1,5 +1,9 @@
 #include "mod-ollama-chat_random.h"
 bool WovRealInGuild(uint32 guildId);  // wov: mod-ollama-chat_handler.cpp
+void WovGuild_SetRegulars(uint32 guildId, std::vector<uint64_t> online);  // wov: mod-ollama-chat_handler.cpp
+bool WovGuild_IsRegular(uint32 guildId, uint64_t guid);                    // wov
+bool WovGuild_MayOpen(uint32 guildId, time_t now);                          // wov
+std::string WovGuild_Context(uint32 guildId, std::string const& botName);   // wov
 #include <string>
 class Player;
 std::string WovIntentSection(Player* bot);  // wov: mod-ollama-chat_sentiment.cpp
@@ -567,6 +571,22 @@ void OllamaBotRandomChatter::HandleRandomChatter()
 
     const time_t now = time(nullptr);
 
+    // wov: the regulars of every guild a real player can read (a stable few of the bots online)
+    {
+        std::unordered_map<uint32, std::vector<uint64_t>> online;
+        for (auto const& itr : allPlayers)
+        {
+            Player* b = itr.second;
+            if (!b || !b->IsInWorld() || !b->GetGuildId() || !world.GuildHasRealPlayer(b->GetGuildId()))
+                continue;
+            PlayerbotAI* bai = PlayerbotsMgr::instance().GetPlayerbotAI(b);
+            if (bai && bai->IsBotAI())
+                online[b->GetGuildId()].push_back(b->GetGUID().GetRawValue());
+        }
+        for (auto& [g, v] : online)
+            WovGuild_SetRegulars(g, std::move(v));
+    }
+
     for (auto const& itr : allPlayers)
     {
         Player* bot = itr.second;
@@ -685,6 +705,14 @@ void OllamaBotRandomChatter::HandleRandomChatter()
             continue;
         }
 
+        // wov: guild chat is one conversation: only a regular opens, and only when it has been quiet a while
+        if (source == SRC_GUILD_LOCAL &&
+            (!WovGuild_IsRegular(bot->GetGuildId(), rawGuid) || !WovGuild_MayOpen(bot->GetGuildId(), now)))
+        {
+            reschedule();
+            continue;
+        }
+
         // Same inputs the reply path uses, so ambient lines and replies in the
         // same channel share one cooldown, rate limit and repetition history.
         const std::string scopeKey = Governor_MakeScopeKey(
@@ -751,6 +779,8 @@ void OllamaBotRandomChatter::HandleRandomChatter()
         request.triggerBotReplies = true;
         if (source == SRC_GUILD_LOCAL && WovRealInGuild(bot->GetGuildId()))
             request.lane = OllamaLane::Person;  // wov: guild chat a real player reads goes to the person model
+        if (source == SRC_GUILD_LOCAL)
+            request.prompt += WovGuild_Context(bot->GetGuildId(), bot->GetName());  // wov: what was said before
 
         if (OllamaDispatch_Submit(std::move(request)))
             Topics_NoteUsed(bot->GetGUID(), topic.key);

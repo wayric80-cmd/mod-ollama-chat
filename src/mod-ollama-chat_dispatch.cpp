@@ -4,6 +4,7 @@
 #include "mod-ollama-chat_dispatch.h"
 #include "mod-ollama-chat_api.h"
 #include "mod-ollama-chat_config.h"
+bool WovLineContradictsLevel(Player* bot, std::string const& text);  // wov: mod-ollama-chat_handler.cpp
 #include "mod-ollama-chat_conversation.h"
 #include "mod-ollama-chat_expression.h"
 #include "mod-ollama-chat_governor.h"
@@ -1318,6 +1319,24 @@ namespace
                         return;
                     }
                 }
+            }
+        }
+
+        // wov 1/11: the model chose to stay quiet, or said it is another level than it is
+        {
+            std::string low = c.text;
+            std::transform(low.begin(), low.end(), low.begin(), ::tolower);
+            if (low.find("[skip]") != std::string::npos || low == "skip" || low == "skip.")
+            {
+                if (g_DebugEnabled)
+                    LOG_INFO("module.ollamachat", "[Ollama Chat] Bot {} chose to stay quiet", bot->GetName());
+                return;
+            }
+            if (WovLineContradictsLevel(bot, c.text))
+            {
+                if (g_DebugEnabled)
+                    LOG_INFO("module.ollamachat", "[Ollama Chat] Bot {} line dropped, wrong level for itself: {}", bot->GetName(), c.text);
+                return;
             }
         }
 
