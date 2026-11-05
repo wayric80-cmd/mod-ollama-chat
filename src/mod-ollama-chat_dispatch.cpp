@@ -1660,7 +1660,15 @@ bool OllamaDispatch_Submit(OllamaChatRequest request)
     if (request.prompt.empty() || request.botGuid == 0)
         return false;
 
-    request.modelRoute = WovPremiumModelRoute(request);
+    // WoV: General is always local, including replies to humans and premium accounts.
+    // Pin the route explicitly so Reply.Model and premium selection cannot send it to Haiku.
+    if (request.source == SRC_GENERAL_LOCAL && request.channelId == ChatChannelId::GENERAL)
+    {
+        request.modelRoute = "ambient";
+        request.lane = OllamaLane::Voice;
+    }
+    else
+        request.modelRoute = WovPremiumModelRoute(request);
     if (!request.modelRoute.empty())
         request.lane = OllamaLane::Person;
     // wov: party/raid talk a real player reads goes to the person model, like guild chat
