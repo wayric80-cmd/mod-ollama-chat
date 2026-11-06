@@ -1858,6 +1858,8 @@ void PlayerBotChatHandler::ProcessChat(Player* player, uint32_t /*type*/, uint32
                     else if (sourceLocal == SRC_PARTY_LOCAL || sourceLocal == SRC_RAID_LOCAL)
                     {
                         Group* group = candidate->GetGroup();
+                        if (group && senderIsBot && group->isRaidGroup())
+                            continue;  // wov: bots in a raid do not answer each other with the model
                         if (group)
                         {
                             // Check if any real player is in this group

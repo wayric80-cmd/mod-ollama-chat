@@ -600,6 +600,10 @@ void OllamaBotRandomChatter::HandleRandomChatter()
         if (!ai || !ai->IsBotAI())
             continue;
 
+        // wov: a bot in a raid has no ambient chatter (it asked for other groups and "anyone up for a duel?" mid-raid)
+        if (Group* rg = bot->GetGroup(); rg && rg->isRaidGroup())
+            continue;
+
         // Idle chatter in a fight is the one kind that genuinely should not happen: nobody muses about the
         // price of grain while something is biting them.
         if (!g_CombatAmbient && bot->IsInCombat())

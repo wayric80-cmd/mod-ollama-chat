@@ -1274,6 +1274,23 @@ namespace
             }
         }
 
+        // wov: instruction leak. The model sometimes describes how it is reacting instead of reacting ("..., so I'm
+        // reacting to that with a short congrats, casual tone", "Terse reaction, indifferent-ish tone."), or opens like
+        // an NPC ("Greetings, traveler!"). No player writes that: the line is dropped.
+        {
+            std::string low = c.text;
+            std::transform(low.begin(), low.end(), low.begin(), [](unsigned char ch) { return std::tolower(ch); });
+            static const char* const kMeta[] = {"tone.", "tone,", "i'm reacting", "i am reacting", "reacting to that",
+                                                "terse reaction", "indifferent", "short congrats", "casual tone",
+                                                "cool toward", "greetings, traveler", "my reaction", "in-character"};
+            for (const char* m : kMeta)
+                if (low.find(m) != std::string::npos)
+                {
+                    LOG_INFO("module.ollamachat", "[Ollama Chat] Bot {} instruction leak dropped: '{}'", bot->GetName(), c.text);
+                    return;
+                }
+        }
+
         // wov: echo strip. Small models open by repeating the message they answer
         // ("where do i train? lol ...") -- no person types that. Drop a leading
         // copy of the origin message (case-insensitive, ignoring the punctuation

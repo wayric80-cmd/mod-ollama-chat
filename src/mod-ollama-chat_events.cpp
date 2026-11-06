@@ -345,6 +345,10 @@ void OllamaBotEventChatter::DispatchGameEvent(Player* source, std::string type, 
 
     for (Player* bot : candidateBots)
     {
+        // wov: bots in a raid do not comment on events with the model (the raid leader and a few short canned lines
+        // speak for the raid); they narrated each other's loot and deaths, and leaked their instructions
+        if (Group* rg = bot->GetGroup(); rg && rg->isRaidGroup())
+            continue;
         // Events are reactions to something that just happened, and in a fight that is when the most
         // worth reacting to happens. This used to be gated with everything else.
         if (!g_CombatEvents && bot->IsInCombat())
@@ -510,7 +514,7 @@ void OllamaEvents_SceneSpoken(Player* witness, std::string const& speakerName, s
         return;
 
     Group* group = witness->GetGroup();
-    if (!group)
+    if (!group || group->isRaidGroup())  // wov: not in a raid
         return;
 
     std::vector<Player*> candidates;
