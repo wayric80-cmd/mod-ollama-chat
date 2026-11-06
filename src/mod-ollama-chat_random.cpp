@@ -137,7 +137,7 @@ namespace
         if (bot->GetGroup() && !g_DisableForParty &&
             (OllamaGroupHasRealPlayer(bot) || (g_PartyChatterEnable && BotOnlyCompany(bot))))
         {
-            outSource = SRC_PARTY_LOCAL;
+            outSource = bot->GetGroup()->isRaidGroup() ? SRC_RAID_LOCAL : SRC_PARTY_LOCAL;  // wov: /raid in a raid
             return true;
         }
 

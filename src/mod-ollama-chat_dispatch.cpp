@@ -568,7 +568,8 @@ namespace
                 if (!OllamaGroupHasRealPlayer(bot) &&
                     !(g_PartyChatterEnable && bot->GetGroup()->GetMembersCount() >= 2))
                     return false;
-                return botAI->SayToParty(text);
+                // wov: in a raid group the talk goes to /raid, not /party
+                return bot->GetGroup()->isRaidGroup() ? botAI->SayToRaid(text) : botAI->SayToParty(text);
 
             case SRC_RAID_LOCAL:
                 if (g_DisableForParty || !bot->GetGroup())
