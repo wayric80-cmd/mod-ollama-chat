@@ -623,6 +623,7 @@ void OllamaBotRandomChatter::HandleRandomChatter()
         // faction is may talk there, on its own (lower) chance. ChooseDestination only offers General/
         // Trade when a real player is actually in that channel, and /say only when one is within earshot.
         const bool zoneAudience = !nearRealPlayer && g_WovZoneChatterChance > 0 &&
+                                  !(bot->IsInFlight() || bot->InBattleground() || bot->InBattlegroundQueue()) &&
                                   world.RealPlayerInZoneAndFaction(bot);
 
         if (!guildAudience && !nearRealPlayer && !partyAudience && !zoneAudience)

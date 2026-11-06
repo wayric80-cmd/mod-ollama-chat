@@ -515,6 +515,22 @@ namespace
                 if (!channel || !bot->IsInChannel(channel))
                     return false;
 
+                // wov: a zone channel only reaches its own zone. The line has been on its way for tens of seconds; if
+                // the bot has flown off or gone to a battleground since, nobody in the channel would see it and it
+                // would still be recorded as said. Drop it instead.
+                {
+                    const uint32 cid = channel->GetChannelId();
+                    const bool zoneScoped = (cid == uint32(ChatChannelId::GENERAL) || cid == uint32(ChatChannelId::TRADE) ||
+                                             cid == uint32(ChatChannelId::LOCAL_DEFENSE) ||
+                                             cid == uint32(ChatChannelId::GUILD_RECRUITMENT));
+                    if (zoneScoped && c.request.originZone && bot->GetZoneId() != c.request.originZone)
+                    {
+                        LOG_INFO("module.ollamachat", "WoV zone check: {} left zone {} for {} before the line was sent; dropped.",
+                                 bot->GetName(), c.request.originZone, bot->GetZoneId());
+                        return false;
+                    }
+                }
+
                 // Checked before generating too; re-checked because the only
                 // human in the channel can leave during the LLM round trip.
                 if (!world.RealPlayerInChannel(channel))
@@ -1677,6 +1693,12 @@ bool OllamaDispatch_Submit(OllamaChatRequest request)
         if (Player* b = ObjectAccessor::FindConnectedPlayer(ObjectGuid(request.botGuid)))
             if (b->IsInWorld() && OllamaGroupHasRealPlayer(b))
                 request.lane = OllamaLane::Person;
+
+    // wov: remember where the bot stood at submit time (see OllamaChatRequest::originZone).
+    if (!request.originZone)
+        if (Player* oz = ObjectAccessor::FindConnectedPlayer(ObjectGuid(request.botGuid)))
+            if (oz->IsInWorld())
+                request.originZone = oz->GetZoneId();
 
     Task task;
     task.type    = TaskType::ChatReply;

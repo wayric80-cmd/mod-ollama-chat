@@ -52,6 +52,10 @@ struct OllamaChatRequest
     ChatChannelSourceLocal source = SRC_SAY_LOCAL;
     std::string            channelName;
     uint32_t               channelId = 0;
+    // wov: the zone the bot stood in when the line was submitted. A zone channel is only heard in its own zone, and
+    // the answer takes tens of seconds (queue, generation, typing delay), so delivery drops the line if the bot has
+    // left that zone by then (flight path, battleground, teleport). Filled in by OllamaDispatch_Submit.
+    uint32_t               originZone = 0;
 
     // Loop control. Human-originated messages start at depth 0; each bot reply
     // to a bot increments it.

@@ -1779,6 +1779,12 @@ void PlayerBotChatHandler::ProcessChat(Player* player, uint32_t /*type*/, uint32
             if (isZoneChannel && candidate->GetZoneId() != player->GetZoneId())
                 continue;   // wrong zone for a zone-scoped channel
 
+            // wov: a bot on a flight path, being teleported, or queued for or inside a battleground is about to be
+            // somewhere else; its answer would not reach this zone (see OllamaChatRequest::originZone).
+            if (isZoneChannel && (candidate->IsInFlight() || candidate->IsBeingTeleported() ||
+                                  candidate->InBattleground() || candidate->InBattlegroundQueue()))
+                continue;
+
             // A custom (unnumbered) channel has id 0 and no zone semantics;
             // membership alone decides, which is checked below.
             
